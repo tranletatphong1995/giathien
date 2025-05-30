@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import type { CharacterSettings } from '../types';
 import { CHAPTER_OPTIONS, ESTIMATED_TIME_PER_CHAPTER_RANGE_HOURS, DEFAULT_TARGET_CHAPTERS } from '../constants';
@@ -30,8 +31,11 @@ const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 p-4">
       <div className="bg-slate-800 p-8 rounded-xl shadow-2xl w-full max-w-lg text-center">
         <h1 className="text-4xl font-bold text-sky-400 mb-8">Già Thiên Kỳ Truyện</h1>
+        <p className="text-slate-300 mb-2">
+          Chào mừng đạo hữu đến với Kỷ Nguyên Hậu Thiên Đế (5000 năm sau Diệp Phàm)!
+        </p>
         <p className="text-slate-300 mb-6">
-          Chào mừng đạo hữu! Hãy tạo dựng nhân vật, chọn độ dài cho thiên truyện và bắt đầu hành trình của mình.
+          Hãy tạo dựng nhân vật, chọn độ dài cho thiên truyện và bắt đầu hành trình của mình trong thời đại mới này.
         </p>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -44,22 +48,25 @@ const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
-              placeholder="Ví dụ: Diệp Phàm, Vô Thủy..."
+              placeholder="Ví dụ: Long Aotian, Tiểu Vũ..."
               required
               aria-required="true"
             />
           </div>
           <div>
             <label htmlFor="initialLocation" className="block text-sm font-medium text-sky-300 mb-1 text-left">
-              Vị Trí Khởi Đầu
+              Nơi Khởi Đầu Trong Kỷ Nguyên Mới
             </label>
+            <p className="text-xs text-slate-400 mb-2 text-left">
+              Đây là điểm xuất phát của bạn trong thế giới Già Thiên, 5000 năm sau thời kỳ của Diệp Phàm. Thiên Đình đã vững mạnh, nhiều thế hệ tu sĩ mới đã ra đời.
+            </p>
             <input
               type="text"
               id="initialLocation"
               value={initialLocation}
               onChange={(e) => setInitialLocation(e.target.value)}
               className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
-              placeholder="Ví dụ: Một sơn cốc hẻo lánh, Bên bờ Hoàng Hà..."
+              placeholder="Ví dụ: Một tinh cầu của Thiên Đình, gần Thiên Đế Thánh Địa, một vùng biên thùy..."
               required
               aria-required="true"
             />

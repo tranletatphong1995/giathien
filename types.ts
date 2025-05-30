@@ -1,4 +1,5 @@
 
+
 export enum Realm {
   PhamNhan = "Phàm Nhân",
   LuanHai = "Luân Hải Bí Cảnh",
@@ -74,8 +75,8 @@ export interface StoryChapter {
 }
 
 export enum GamePhase {
-  ApiKeyInput, // New: For entering API key
-  SettingsSetup, // New: For character name, location, and target chapters
+  ApiKeyInput, 
+  SettingsSetup, 
   Playing,
   Ended,
 }
@@ -85,3 +86,6 @@ export interface CharacterSettings {
   initialLocation: string;
   targetChapters: number;
 }
+
+// Represents a short description of a key plot point
+export type KeyStoryEvent = string;

@@ -24,9 +24,17 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit, currentApiKey
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 p-4">
       <div className="bg-slate-800 p-8 rounded-xl shadow-2xl w-full max-w-md text-center">
         <h1 className="text-3xl font-bold text-sky-400 mb-6">Cài Đặt API Key Gemini</h1>
-        <p className="text-slate-300 mb-6">
-          Vui lòng nhập API Key Google Gemini của bạn để bắt đầu. Bạn có thể lấy API Key từ Google AI Studio.
+        <p className="text-slate-300 mb-4">
+          Vui lòng nhập API Key Google Gemini của bạn để bắt đầu.
         </p>
+        <a
+          href="https://aistudio.google.com/apikey"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mb-6 text-sm"
+        >
+          Lấy API Key từ Google AI Studio
+        </a>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="apiKey" className="block text-sm font-medium text-sky-300 mb-1 text-left">
@@ -52,7 +60,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({ onApiKeySubmit, currentApiKey
           </button>
         </form>
          <p className="text-xs text-slate-500 mt-6">
-            API Key của bạn sẽ chỉ được lưu trữ tạm thời trong trình duyệt cho phiên chơi này.
+            API Key của bạn sẽ được lưu trữ trong trình duyệt (localStorage) để bạn không cần nhập lại mỗi lần chơi, cho đến khi bạn xóa dữ liệu trình duyệt.
         </p>
       </div>
       <footer className="mt-12 text-center text-slate-500 text-sm">
