@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { Character, StoryChapter, CharacterSettings } from './types';
-import { GamePhase, Realm, RealmStages, Faction } from './types';
+import { GamePhase, Realm, RealmStages, Faction, OrderedRealms, AllFactions } from './types';
 import { TARGET_CHARS_PER_CHAPTER, STORY_DOWNLOAD_FILENAME, DEFAULT_TARGET_CHAPTERS } from './constants';
 import ApiKeyInput from './components/ApiKeyInput';
 import CharacterSetup from './components/CharacterSetup';
@@ -12,6 +12,25 @@ import ProgressBar from './components/ProgressBar';
 import LoadingSpinner from './components/LoadingSpinner';
 import { generateStorySegment, generateInitialStory, generateChapterTitle } from './services/geminiService';
 
+// Utility function to trim text to the last sensible break
+const trimToLastSensibleBreak = (text: string, maxLength?: number): string => {
+  if (!text) return "";
+  let RtrimmedText = text;
+  if (maxLength && text.length > maxLength) {
+    RtrimmedText = text.substring(0, maxLength);
+  }
+
+  // Find the last sentence-ending punctuation or newline
+  // Regex looks for ., !, ? followed by space/newline OR just newline OR space before end of string
+  const match = RtrimmedText.match(/^(.*[.!?\n\r])[\s\S]*$|^(.+[\s])[\s\S]*$/s);
+  if (match) {
+    // Prefer match group 1 (sentence end), then group 2 (space end)
+    return (match[1] || match[2] || RtrimmedText).trim();
+  }
+  return RtrimmedText.trim(); // Fallback to simple trim if no clear break point
+};
+
+
 const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem('geminiApiKey_GTT') || null);
   const [gamePhase, setGamePhase] = useState<GamePhase>(apiKey ? GamePhase.SettingsSetup : GamePhase.ApiKeyInput);
@@ -20,14 +39,14 @@ const App: React.FC = () => {
   const [completedChapters, setCompletedChapters] = useState<StoryChapter[]>([]);
   const [currentChapterContent, setCurrentChapterContent] = useState<string>("");
   const [currentChapterNumber, setCurrentChapterNumber] = useState<number>(1);
-  const [currentChapterAIProposedTitle, setCurrentChapterAIProposedTitle] = useState<string>(""); // Title for the current in-progress chapter, set when previous completes
+  const [currentChapterAIProposedTitle, setCurrentChapterAIProposedTitle] = useState<string>("");
 
   const [isLoadingAI, setIsLoadingAI] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleApiKeySubmit = useCallback((submittedApiKey: string) => {
     setApiKey(submittedApiKey);
-    localStorage.setItem('geminiApiKey_GTT', submittedApiKey); // Persist API key locally
+    localStorage.setItem('geminiApiKey_GTT', submittedApiKey);
     setGamePhase(GamePhase.SettingsSetup);
   }, []);
 
@@ -73,10 +92,70 @@ const App: React.FC = () => {
       setIsLoadingAI(false);
     }
   }, [character, apiKey]);
+  
+  // Function to parse [CHARACTER_UPDATE: ...] tags and update character state
+  const parseAndApplyCharacterUpdates = (textSegment: string): { cleanedSegment: string, updatesApplied: boolean } => {
+    if (!character) return { cleanedSegment: textSegment, updatesApplied: false };
 
+    const updateRegex = /\[CHARACTER_UPDATE:\s*([^\]]+)\]/gi;
+    let cleanedSegment = textSegment;
+    let updatesApplied = false;
+    let match;
+    
+    const newUpdates: Partial<Character> = {};
+
+    while ((match = updateRegex.exec(textSegment)) !== null) {
+      cleanedSegment = cleanedSegment.replace(match[0], "").trim(); // Remove the tag from story
+      const propsString = match[1];
+      const propRegex = /(\w+)\s*=\s*"([^"]*)"/g;
+      let propMatch;
+      while ((propMatch = propRegex.exec(propsString)) !== null) {
+        const key = propMatch[1] as keyof Character;
+        const value = propMatch[2];
+        
+        if (key === "realm" && Object.values(Realm).includes(value as Realm)) {
+            newUpdates.realm = value as Realm;
+            // Reset stage if realm changes
+            if (character.realm !== value) {
+                 newUpdates.stage = RealmStages[value as Realm][0];
+            }
+            updatesApplied = true;
+        } else if (key === "stage" && newUpdates.realm && RealmStages[newUpdates.realm as Realm]?.includes(value)) {
+            newUpdates.stage = value;
+            updatesApplied = true;
+        } else if (key === "stage" && !newUpdates.realm && RealmStages[character.realm]?.includes(value)) { // Stage change within current realm
+            newUpdates.stage = value;
+            updatesApplied = true;
+        } else if (key === "faction" && Object.values(Faction).includes(value as Faction)) {
+            newUpdates.faction = value as Faction;
+            updatesApplied = true;
+        } else if (key === "location") {
+            newUpdates.location = value;
+            updatesApplied = true;
+        }
+      }
+    }
+    
+    if (updatesApplied && Object.keys(newUpdates).length > 0) {
+        setCharacter(prev => prev ? { ...prev, ...newUpdates } : null);
+    }
+    return { cleanedSegment, updatesApplied };
+  };
+
+
+  // This function is primarily for programmatic updates (e.g., by AI)
   const handleUpdateCharacter = useCallback((updates: Partial<Character>) => {
-    setCharacter(prev => prev ? { ...prev, ...updates } : null);
+    setCharacter(prev => {
+      if (!prev) return null;
+      const newCharacterState = { ...prev, ...updates };
+      // Ensure stage is valid for the realm
+      if (updates.realm && (!updates.stage || !RealmStages[updates.realm]?.includes(updates.stage))) {
+        newCharacterState.stage = RealmStages[updates.realm][0];
+      }
+      return newCharacterState;
+    });
   }, []);
+
 
   const processPlayerAction = useCallback(async (actionText: string) => {
     if (!character || !apiKey || currentChapterContent === "") return;
@@ -86,41 +165,57 @@ const App: React.FC = () => {
     try {
       const storyContext = {
         character,
-        previousStoryChunk: currentChapterContent.slice(-1000), // Use a larger chunk for better context
+        previousStoryChunk: currentChapterContent.slice(-1500), // Provide a bit more context
         currentChapterNumber,
         charsInCurrentChapter: currentChapterContent.length,
       };
-      const newStorySegment = await generateStorySegment(apiKey, storyContext, actionText);
+      let newStorySegmentFromAI = await generateStorySegment(apiKey, storyContext, actionText);
 
-      if (newStorySegment.startsWith("Lỗi API:") || newStorySegment.startsWith("Đã xảy ra lỗi")) {
-        setErrorMessage(newStorySegment);
+      if (newStorySegmentFromAI.startsWith("Lỗi API:") || newStorySegmentFromAI.startsWith("Đã xảy ra lỗi")) {
+        setErrorMessage(newStorySegmentFromAI);
         setIsLoadingAI(false);
         return;
       }
       
-      let updatedContent = currentChapterContent + "\n\n" + newStorySegment;
+      // Parse for character updates and remove the tag from the segment
+      const { cleanedSegment, updatesApplied } = parseAndApplyCharacterUpdates(newStorySegmentFromAI);
+      if (updatesApplied) {
+        // Character state is updated via setCharacter in parseAndApplyCharacterUpdates
+        // We might need to re-fetch character if generateChapterTitle needs the absolute latest
+      }
+      newStorySegmentFromAI = cleanedSegment;
+      
+      let combinedContent = currentChapterContent + "\n\n" + newStorySegmentFromAI;
 
-      if (updatedContent.length >= TARGET_CHARS_PER_CHAPTER) {
-        const completedChapterFullContent = updatedContent.slice(0, TARGET_CHARS_PER_CHAPTER);
+      if (combinedContent.length >= TARGET_CHARS_PER_CHAPTER) {
+        const chapterContentForCompletion = trimToLastSensibleBreak(combinedContent, TARGET_CHARS_PER_CHAPTER);
+        const remainingForNextChapter = combinedContent.slice(chapterContentForCompletion.length).trimStart();
+
         // AI generates title for the completed chapter
-        const aiTitle = await generateChapterTitle(apiKey, completedChapterFullContent, character, currentChapterNumber);
+        // Use a fresh character object if updates were applied.
+        const charForTitle = updatesApplied ? (await (async () => { await new Promise(r => setTimeout(r,0)); return character; })())! : character;
 
-        setCompletedChapters(prev => [...prev, { 
+        const aiTitle = await generateChapterTitle(apiKey, chapterContentForCompletion, charForTitle, currentChapterNumber);
+        
+        const completedChapter: StoryChapter = { 
           chapterNumber: currentChapterNumber, 
-          title: aiTitle || `Chương ${currentChapterNumber}`, // Fallback if AI title fails
-          content: completedChapterFullContent 
-        }]);
+          title: aiTitle || `Chương ${currentChapterNumber}`,
+          content: chapterContentForCompletion 
+        };
+
+        setCompletedChapters(prev => [...prev, completedChapter]);
+        handleDownloadSingleChapter(completedChapter); // Auto-download completed chapter
         
         const nextChapterNumber = currentChapterNumber + 1;
         setCurrentChapterNumber(nextChapterNumber);
-        setCurrentChapterContent(updatedContent.slice(TARGET_CHARS_PER_CHAPTER)); // Remaining part for new chapter
-        setCurrentChapterAIProposedTitle(aiTitle); // Store for display as "Previously..."
+        setCurrentChapterContent(remainingForNextChapter);
+        setCurrentChapterAIProposedTitle(aiTitle); 
 
         if (nextChapterNumber > targetChapters) {
           setGamePhase(GamePhase.Ended);
         }
       } else {
-        setCurrentChapterContent(updatedContent);
+        setCurrentChapterContent(combinedContent);
       }
 
     } catch (error) {
@@ -129,37 +224,53 @@ const App: React.FC = () => {
     } finally {
       setIsLoadingAI(false);
     }
-  }, [character, apiKey, currentChapterContent, currentChapterNumber, targetChapters]);
+  }, [character, apiKey, currentChapterContent, currentChapterNumber, targetChapters, parseAndApplyCharacterUpdates]);
 
 
   useEffect(() => {
     if (currentChapterNumber > targetChapters && gamePhase !== GamePhase.Ended) {
       setGamePhase(GamePhase.Ended);
-      // Ensure the very last piece of content is captured if the game ends exactly on chapter completion
       if (currentChapterContent.length > 0 && completedChapters.length < targetChapters) {
+         const finalTrimmedContent = trimToLastSensibleBreak(currentChapterContent);
          setCompletedChapters(prev => [...prev, { 
-            chapterNumber: currentChapterNumber -1, // Should be the last completed chapter
+            chapterNumber: currentChapterNumber -1, 
             title: currentChapterAIProposedTitle || `Chương ${currentChapterNumber - 1}`,
-            content: currentChapterContent 
+            content: finalTrimmedContent 
         }]);
          setCurrentChapterContent(""); 
       }
     }
   }, [currentChapterNumber, targetChapters, gamePhase, currentChapterContent, completedChapters.length, currentChapterAIProposedTitle]);
 
+  const handleDownloadSingleChapter = (chapter: StoryChapter) => {
+    if (!character) return;
+    const sanitizedTitle = chapter.title.replace(/[^a-z0-9áàảãạăắằẳẵặâấầẩẫậéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụứừửữựýỳỷỹỵđ\s_]/gi, '').replace(/\s+/g, '_');
+    const filename = `GiaThienKyTruyen_Chuong${chapter.chapterNumber}_${sanitizedTitle || 'KhongTieuDe'}.txt`;
+    
+    const chapterText = `Chương ${chapter.chapterNumber}: ${chapter.title}\n\n${chapter.content}`;
+    const blob = new Blob([chapterText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const handleDownloadStory = () => {
-    let fullStory = completedChapters.map(ch => `${ch.title}\n\n${ch.content}`).join("\n\n---\n\n");
+    let fullStory = completedChapters.map(ch => `Chương ${ch.chapterNumber}: ${ch.title}\n\n${ch.content}`).join("\n\n---\n\n");
     
-    const finalChapterTitle = currentChapterAIProposedTitle || `Chương ${currentChapterNumber}`;
-
-    if (currentChapterContent.length > 0 && gamePhase !== GamePhase.Ended) {
-       fullStory += `\n\n---\n\n${finalChapterTitle} (Đang viết...)\n\n${currentChapterContent}`;
-    } else if (currentChapterContent.length > 0 && gamePhase === GamePhase.Ended && completedChapters.length >= targetChapters) {
-      // If game ended and there's remaining content for the "last" chapter beyond target
-      fullStory += `\n\n---\n\n${finalChapterTitle} (Phần cuối)\n\n${currentChapterContent}`;
+    if (gamePhase !== GamePhase.Ended && currentChapterContent.length > 0) {
+       const currentDisplayTitle = currentChapterAIProposedTitle && currentChapterNumber > 1 ? currentChapterAIProposedTitle : `Chương ${currentChapterNumber}`;
+       fullStory += `\n\n---\n\n${currentDisplayTitle} (Đang viết...)\n\n${currentChapterContent}`; // Current content is not trimmed as it's ongoing
+    } else if (gamePhase === GamePhase.Ended && currentChapterContent.length > 0 && completedChapters.length >= targetChapters) {
+      // If game ended and there's remaining content that was part of the "last" chapter beyond target
+      const finalChapterTitle = currentChapterAIProposedTitle || `Chương ${completedChapters.length +1}`; // Use last known proposed or increment
+      const finalTrimmedContentForStory = trimToLastSensibleBreak(currentChapterContent);
+      fullStory += `\n\n---\n\n${finalChapterTitle} (Phần cuối)\n\n${finalTrimmedContentForStory}`;
     }
-
 
     const blob = new Blob([`Tiểu Thuyết Già Thiên Kỳ Truyện\nTác giả: ${character?.name || 'Nhân vật chính'}\nBắt đầu tại: ${character?.location || 'Không rõ'}\nSố chương mục tiêu: ${targetChapters}\n\n` + fullStory], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -173,12 +284,6 @@ const App: React.FC = () => {
   };
   
   const resetGame = () => {
-    // Optionally clear API key from localStorage too, or keep it for convenience
-    // localStorage.removeItem('geminiApiKey_GTT'); 
-    // setApiKey(null);
-    // setGamePhase(GamePhase.ApiKeyInput);
-    
-    // For now, keep API key and go to settings setup
     setGamePhase(GamePhase.SettingsSetup);
     setCharacter(null);
     setCompletedChapters([]);
@@ -223,7 +328,7 @@ const App: React.FC = () => {
           className="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-8 rounded-lg text-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-2 focus:ring-offset-slate-900"
           aria-label="Tải tiểu thuyết xuống"
         >
-          Tải Tiểu Thuyết Xuống (.txt)
+          Tải Toàn Bộ Tiểu Thuyết (.txt)
         </button>
          <button
           onClick={resetGame}
@@ -236,18 +341,9 @@ const App: React.FC = () => {
     );
   }
 
-  // Determine current chapter display title
-  let displayChapterTitle = `Chương ${currentChapterNumber}`;
-  if (currentChapterNumber > 1 && currentChapterAIProposedTitle) {
-    // If it's not the first chapter and the previous one had a title generated.
-    // This title (`currentChapterAIProposedTitle`) belongs to the *previous* completed chapter.
-    // The current, in-progress chapter doesn't have an AI title yet.
-    // So we stick to "Chương X (Đang viết...)"
-  }
-  if (currentChapterContent || completedChapters.length > 0) {
-      displayChapterTitle += " (Đang viết...)";
-  }
-  // For completed chapters, their `ch.title` is used.
+  let displayChapterTitleForStoryDisplay = `Chương ${currentChapterNumber}`;
+   // StoryDisplay will handle adding "(Đang viết...)" for the current chapter.
+   // currentChapterAIProposedTitle is title of *previous* chapter.
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row p-4 gap-4 bg-slate-900 relative">
@@ -263,19 +359,15 @@ const App: React.FC = () => {
             className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-slate-900"
             aria-label="Tải truyện hiện tại"
           >
-            Tải Truyện Hiện Tại
+            Tải Toàn Bộ Truyện Hiện Tại
           </button>
       </div>
       <main className="flex-grow md:w-2/3 lg:w-3/4 flex flex-col">
-        {/* Removed manual chapter title input */}
         <StoryDisplay 
           completedChapters={completedChapters} 
           currentChapterContent={currentChapterContent}
           currentChapterNumber={currentChapterNumber}
-          // Pass the AI-generated title of the *previous* chapter if available and relevant,
-          // or just the number for the current one.
-          // The StoryDisplay itself will handle "(Đang viết...)" for current chapter.
-          currentChapterTitle={currentChapterAIProposedTitle && currentChapterNumber > 1 ? currentChapterAIProposedTitle : `Chương ${currentChapterNumber}`}
+          currentChapterTitle={displayChapterTitleForStoryDisplay} 
         />
         {isLoadingAI && <LoadingSpinner text="AI đang sáng tạo thế giới..." />}
         {errorMessage && <div className="mt-4 p-3 bg-red-800 border border-red-700 text-red-200 rounded-md" role="alert">{errorMessage}</div>}
