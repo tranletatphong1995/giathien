@@ -1,5 +1,7 @@
 
+
 import React, { useState } from 'react';
+import { DEFAULT_TARGET_CHAPTERS, TARGET_CHARS_PER_CHAPTER } from '../constants'; // Import constants
 
 interface TutorialProps {
   isOpen: boolean;
@@ -22,9 +24,9 @@ const tutorialSteps = [
     content: (
       <>
         <p>Ở phía bên trái (hoặc phía trên trên điện thoại), bạn sẽ thấy <strong>Bảng Thông Tin Nhân Vật</strong>.</p>
-        <p className="mt-2">Nó hiển thị tên, cảnh giới, tiểu cảnh, thế lực và vị trí hiện tại của bạn. Những thông tin này sẽ tự động cập nhật khi câu chuyện tiến triển và bạn đạt được những đột phá mới hoặc di chuyển đến các địa điểm khác.</p>
+        <p className="mt-2">Nó hiển thị tên, tuổi, tính cách, sở thích, cảnh giới, tiểu cảnh, thế lực và vị trí hiện tại của bạn. Những thông tin này sẽ tự động cập nhật khi câu chuyện tiến triển.</p>
         
-         <p className="text-xs italic mt-1 text-slate-400 text-center">Ảnh minh họa vị trí bảng nhân vật.</p>
+         <p className="text-xs italic mt-1 text-slate-400 text-center">Bảng này sẽ phản ánh sự trưởng thành của bạn.</p>
       </>
     ),
   },
@@ -35,7 +37,7 @@ const tutorialSteps = [
         <p>Đây là nơi câu chuyện của bạn được AI viết ra. Mỗi khi bạn thực hiện một hành động, AI sẽ viết tiếp diễn biến.</p>
         <p className="mt-2">Các chương đã hoàn thành sẽ được hiển thị rõ ràng. Bạn có thể cuộn lên để đọc lại những diễn biến cũ.</p>
         
-        <p className="text-xs italic mt-1 text-slate-400 text-center">Ảnh minh họa khung hiển thị truyện.</p>
+        <p className="text-xs italic mt-1 text-slate-400 text-center">Theo dõi hành trình của bạn tại đây.</p>
       </>
     ),
   },
@@ -55,7 +57,7 @@ const tutorialSteps = [
     content: (
       <>
         <p>Phía dưới Bảng Nhân Vật là <strong>Thanh Tiến Trình</strong>.</p>
-        <p className="mt-2">Nó cho bạn biết bạn đã viết được bao nhiêu chữ trong chương hiện tại (mục tiêu là {Number(10000).toLocaleString()} chữ/chương) và tiến độ hoàn thành tổng số chương bạn đã chọn.</p>
+        <p className="mt-2">Nó cho bạn biết bạn đã viết được bao nhiêu chữ trong chương hiện tại (mục tiêu là {Number(TARGET_CHARS_PER_CHAPTER).toLocaleString()} chữ/chương) và tiến độ hoàn thành tổng số {DEFAULT_TARGET_CHAPTERS} chương của toàn bộ thiên truyện (mục tiêu mặc định).</p>
       </>
     ),
   },
@@ -74,7 +76,7 @@ const tutorialSteps = [
     title: "Mục Tiêu & Kết Thúc",
     content: (
       <>
-        <p>Mục tiêu của bạn là hoàn thành số chương đã chọn trong phần cài đặt ban đầu.</p>
+        <p>Mục tiêu của bạn là hoàn thành {DEFAULT_TARGET_CHAPTERS} chương (mục tiêu mặc định) để tạo nên một tác phẩm hoàn chỉnh.</p>
         <p className="mt-2">Khi đạt đủ số chương, trò chơi sẽ kết thúc và bạn có thể tải xuống toàn bộ tác phẩm tiểu thuyết do chính bạn và AI đồng sáng tạo.</p>
         <p className="mt-4">Chúc bạn có những giây phút tu tiên đầy kỳ thú và sáng tạo!</p>
       </>

@@ -35,6 +35,10 @@ export const OrderedRealms: Realm[] = [
 
 export enum Faction {
   ChuaGiaNhap = "Chưa Gia Nhập",
+  // Simplified initial factions - more can be discovered.
+  TanTu = "Tán Tu", // Default if not part of anything significant.
+  ThonLangDiaPhuong = "Thôn Làng/Địa Phương Nhỏ", // For very early game interactions.
+  // Major factions from lore to be discovered much later.
   KimHaDongThien = "Kim Hà Động Thiên",
   NgocDinhDongThien = "Ngọc Đỉnh Động Thiên",
   YenHaDongThien = "Yên Hà Động Thiên",
@@ -43,25 +47,20 @@ export enum Faction {
   LinhKhuDongThien = "Linh Khư Động Thiên",
   CoGia = "Cơ Gia",
   KhuongGia = "Khương Gia",
-  TanTu = "Tán Tu",
+  // Factions for the "Post-Heavenly Emperor Era"
+  ThienDinh = "Thiên Đình",
+  ThienDeThanhDia = "Thiên Đế Thánh Địa",
+  LienMinhVuTru = "Liên Minh Vũ Trụ",
 }
 
-export const AllFactions: Faction[] = [
-  Faction.ChuaGiaNhap,
-  Faction.KimHaDongThien,
-  Faction.NgocDinhDongThien,
-  Faction.YenHaDongThien,
-  Faction.TuDuongDongThien,
-  Faction.TichNguyetDongThien,
-  Faction.LinhKhuDongThien,
-  Faction.CoGia,
-  Faction.KhuongGia,
-  Faction.TanTu,
-];
+export const AllFactions: Faction[] = Object.values(Faction);
 
 
 export interface Character {
   name: string;
+  age: number;
+  personality: string;
+  interests: string;
   realm: Realm;
   stage: string;
   faction: Faction;
@@ -83,8 +82,10 @@ export enum GamePhase {
 
 export interface CharacterSettings {
   name: string;
+  age: number;
   initialLocation: string;
-  targetChapters: number;
+  personality: string;
+  interests: string;
 }
 
 // Represents a short description of a key plot point

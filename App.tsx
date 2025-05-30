@@ -41,7 +41,8 @@ const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string | null>(localStorage.getItem('geminiApiKey_GTT') || null);
   const [gamePhase, setGamePhase] = useState<GamePhase>(apiKey ? GamePhase.SettingsSetup : GamePhase.ApiKeyInput);
   const [character, setCharacter] = useState<Character | null>(null);
-  const [targetChapters, setTargetChapters] = useState<number>(DEFAULT_TARGET_CHAPTERS);
+  // targetChapters is now fixed to a default for a long-form story.
+  const [targetChapters] = useState<number>(DEFAULT_TARGET_CHAPTERS); 
   const [completedChapters, setCompletedChapters] = useState<StoryChapter[]>([]);
   const [currentChapterContent, setCurrentChapterContent] = useState<string>("");
   const [currentChapterNumber, setCurrentChapterNumber] = useState<number>(1);
@@ -68,19 +69,22 @@ const App: React.FC = () => {
   const handleSettingsSetup = useCallback((settings: CharacterSettings) => {
     const initialCharacter: Character = {
       name: settings.name,
+      age: settings.age,
+      personality: settings.personality,
+      interests: settings.interests,
       realm: Realm.PhamNhan,
       stage: RealmStages[Realm.PhamNhan][0],
-      faction: Faction.ChuaGiaNhap,
+      faction: Faction.ChuaGiaNhap, // Start unaligned or very locally aligned
       location: settings.initialLocation,
     };
     setCharacter(initialCharacter);
-    setTargetChapters(settings.targetChapters);
+    // targetChapters is already set to DEFAULT_TARGET_CHAPTERS via useState
     setGamePhase(GamePhase.Playing);
     setCurrentChapterNumber(1);
     setCurrentChapterContent("");
     setCompletedChapters([]);
     setCurrentChapterAIProposedTitle("");
-    setKeyStoryEvents([]); // Reset key events for a new game
+    setKeyStoryEvents([]); 
     setErrorMessage(null);
     setShowTutorial(true);
   }, []);
@@ -97,10 +101,17 @@ const App: React.FC = () => {
     setIsLoadingAI(true);
     setErrorMessage(null);
     try {
-      const initialStory = await generateInitialStory(apiKey, character.name, character.location);
+      const initialCharacterSettings: CharacterSettings = {
+          name: character.name,
+          age: character.age,
+          initialLocation: character.location,
+          personality: character.personality,
+          interests: character.interests,
+      };
+      const initialStory = await generateInitialStory(apiKey, initialCharacterSettings);
       if (initialStory.startsWith("Lỗi API:") || initialStory.startsWith("Đã xảy ra lỗi")) {
         setErrorMessage(initialStory);
-        setCurrentChapterContent(`Không thể bắt đầu câu chuyện cho ${character.name} tại ${character.location}. Lý do: ${initialStory}. Vui lòng kiểm tra API Key và thử lại.`);
+        setCurrentChapterContent(`Không thể bắt đầu câu chuyện cho ${character.name}. Lý do: ${initialStory}. Vui lòng kiểm tra API Key và thử lại.`);
       } else {
         setCurrentChapterContent(initialStory);
       }
@@ -108,7 +119,7 @@ const App: React.FC = () => {
       console.error("Error generating initial story:", error);
       const errorMsg = error instanceof Error ? error.message : String(error);
       setErrorMessage(errorMsg);
-      setCurrentChapterContent(`Không thể bắt đầu câu chuyện cho ${character.name} tại ${character.location}. Lỗi: ${errorMsg}. Vui lòng thử lại hoặc kiểm tra console.`);
+      setCurrentChapterContent(`Không thể bắt đầu câu chuyện cho ${character.name}. Lỗi: ${errorMsg}. Vui lòng thử lại hoặc kiểm tra console.`);
     } finally {
       setIsLoadingAI(false);
     }
@@ -120,7 +131,6 @@ const App: React.FC = () => {
     let charUpdatesApplied = false;
     const newKeyEvents: KeyStoryEvent[] = [];
 
-    // Parse Character Updates
     const charUpdateRegex = /\[CHARACTER_UPDATE:\s*([^\]]+)\]/gi;
     const charUpdateMatches = Array.from(cleanedSegment.matchAll(charUpdateRegex));
     if (charUpdateMatches.length > 0) {
@@ -150,6 +160,7 @@ const App: React.FC = () => {
                     charUpdates.location = value;
                     charUpdatesApplied = true;
                 }
+                // Age, personality, interests are generally not updated by AI in this manner
             }
         }
         cleanedSegment = cleanedSegment.replace(charUpdateRegex, "").trim();
@@ -158,7 +169,6 @@ const App: React.FC = () => {
         }
     }
 
-    // Parse Key Events
     const keyEventRegex = /\[KEY_EVENT:\s*([^\]]+)\]/gi;
     const keyEventMatches = Array.from(cleanedSegment.matchAll(keyEventRegex));
     if (keyEventMatches.length > 0) {
@@ -180,7 +190,6 @@ const App: React.FC = () => {
         }
     }
     
-    // Final cleanup for any stray markdown (though AI is prompted not to use it)
     cleanedSegment = cleanedSegment.replace(/```(\w*?\s*\n?)?(.*?)\n?\s*```/gs, '$2').trim();
 
     return { 
@@ -208,7 +217,9 @@ const App: React.FC = () => {
     if (showTutorial) return;
     if (!character || !apiKey || (currentChapterContent === "" && completedChapters.length === 0)) { 
         if (currentChapterContent === "" && completedChapters.length > 0) {
-            // Start new chapter
+            // This case implies a new chapter is starting but no content yet.
+            // Usually, content from the previous chapter's spillover would be here.
+            // This might be a rare edge case or indicate a logic gap if it happens often.
         } else if (currentChapterContent === "") { 
             setErrorMessage("Vui lòng nhấn 'Bắt Đầu Cuộc Phiêu Lưu' trước.");
             return;
@@ -222,8 +233,9 @@ const App: React.FC = () => {
       const recentKeyEvents = keyStoryEvents.slice(-MAX_KEY_EVENTS_FOR_PROMPT);
       const keyEventsSummary = recentKeyEvents.length > 0 ? recentKeyEvents.map(event => `- ${event}`).join("\n") : undefined;
 
+      // Ensure full character details are passed
       const storyContext = {
-        character,
+        character, // This now includes age, personality, interests
         previousStoryChunk: currentChapterContent.slice(-1500), 
         currentChapterNumber,
         charsInCurrentChapter: currentChapterContent.length,
@@ -248,9 +260,6 @@ const App: React.FC = () => {
 
         let charForTitleGeneration = character; 
         if (characterUpdatesApplied && appliedCharacterUpdates) {
-            // Use the most up-to-date character info for title generation
-            // This relies on setCharacter having updated the character state,
-            // but for title generation, it's better to construct it directly if possible.
              charForTitleGeneration = { ...character, ...appliedCharacterUpdates };
         }
         
@@ -332,8 +341,9 @@ const App: React.FC = () => {
     if (keyStoryEvents.length > 0) {
         keyEventsSection = "\n\n--- CÁC SỰ KIỆN TRỌNG YẾU ĐÃ GHI NHẬN ---\n" + keyStoryEvents.map((event, index) => `${index + 1}. ${event}`).join("\n") + "\n---";
     }
+    const characterDetails = `Tác giả (Nhân vật chính): ${character.name}\nTuổi: ${character.age}\nTính cách: ${character.personality}\nSở thích: ${character.interests}\nBắt đầu tại: ${character.location}\n`;
 
-    const blob = new Blob([`Tiểu Thuyết Già Thiên Kỳ Truyện\nTác giả: ${character.name}\nBắt đầu tại: ${character.location}\nSố chương mục tiêu: ${targetChapters}\n${keyEventsSection}\n\n` + fullStory], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([`Tiểu Thuyết Già Thiên Kỳ Truyện\n${characterDetails}Số chương mục tiêu (mặc định): ${targetChapters}\n${keyEventsSection}\n\n` + fullStory], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -351,9 +361,9 @@ const App: React.FC = () => {
     setCurrentChapterContent("");
     setCurrentChapterNumber(1);
     setCurrentChapterAIProposedTitle("");
-    setTargetChapters(DEFAULT_TARGET_CHAPTERS);
-    setKeyStoryEvents([]); // Clear key events
-    localStorage.removeItem(KEY_EVENTS_STORAGE_KEY); // Clear from localStorage too
+    // targetChapters remains DEFAULT_TARGET_CHAPTERS
+    setKeyStoryEvents([]); 
+    localStorage.removeItem(KEY_EVENTS_STORAGE_KEY); 
     setErrorMessage(null);
     setShowTutorial(false); 
   };
@@ -388,7 +398,7 @@ const App: React.FC = () => {
           Bạn đã hoàn thành cuộc hành trình <strong className="text-sky-300">{targetChapters}</strong> chương trong Già Thiên Kỳ Truyện!
         </p>
         <p className="text-slate-300 mb-8 max-w-2xl">
-          Câu chuyện của nhân vật {character.name}, bắt đầu từ {character.location}, đã đi đến hồi kết theo mục tiêu đã chọn.
+          Câu chuyện của nhân vật {character.name}, bắt đầu từ {character.location}, với tính cách {character.personality} và sở thích {character.interests}, đã đi đến hồi kết theo mục tiêu {targetChapters} chương.
           Hy vọng bạn đã có những trải nghiệm tu tiên đáng nhớ. Giờ đây, bạn có thể tải xuống toàn bộ tác phẩm của mình.
         </p>
         <button
@@ -453,7 +463,7 @@ const App: React.FC = () => {
                 Bắt Đầu Cuộc Phiêu Lưu
               </button>
               <p className="text-slate-400 mt-3 text-sm">
-                Nhấn để AI tạo ra đoạn mở đầu cho câu chuyện của bạn tại {character.location}.
+                Nhấn để AI tạo ra đoạn mở đầu cho câu chuyện của {character.name} tại {character.location}.
               </p>
             </div>
         )}

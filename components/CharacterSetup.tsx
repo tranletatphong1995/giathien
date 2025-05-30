@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import type { CharacterSettings } from '../types';
-import { CHAPTER_OPTIONS, ESTIMATED_TIME_PER_CHAPTER_RANGE_HOURS, DEFAULT_TARGET_CHAPTERS } from '../constants';
 
 interface CharacterSetupProps {
   onSetupComplete: (settings: CharacterSettings) => void;
@@ -10,21 +9,26 @@ interface CharacterSetupProps {
 
 const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
   const [name, setName] = useState<string>('');
+  const [age, setAge] = useState<string>(''); // Use string for input, parse to number later
   const [initialLocation, setInitialLocation] = useState<string>('');
-  const [targetChapters, setTargetChapters] = useState<number>(DEFAULT_TARGET_CHAPTERS);
+  const [personality, setPersonality] = useState<string>('');
+  const [interests, setInterests] = useState<string>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim() && initialLocation.trim()) {
-      onSetupComplete({ name: name.trim(), initialLocation: initialLocation.trim(), targetChapters });
+    const parsedAge = parseInt(age, 10);
+    if (name.trim() && initialLocation.trim() && !isNaN(parsedAge) && parsedAge > 0 && personality.trim() && interests.trim()) {
+      onSetupComplete({ 
+        name: name.trim(), 
+        age: parsedAge,
+        initialLocation: initialLocation.trim(), 
+        personality: personality.trim(),
+        interests: interests.trim()
+      });
+    } else {
+      // Basic validation feedback, can be improved
+      alert("Vui lòng điền đầy đủ và hợp lệ tất cả các trường. Số tuổi phải là một số dương.");
     }
-  };
-
-  const getEstimatedPlaytime = (chapters: number): string => {
-    const minHours = chapters * ESTIMATED_TIME_PER_CHAPTER_RANGE_HOURS[0];
-    const maxHours = chapters * ESTIMATED_TIME_PER_CHAPTER_RANGE_HOURS[1];
-    if (minHours === maxHours) return `${minHours.toFixed(1)} giờ`;
-    return `${minHours.toFixed(1)} - ${maxHours.toFixed(1)} giờ`;
   };
 
   return (
@@ -35,9 +39,9 @@ const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
           Chào mừng đạo hữu đến với Kỷ Nguyên Hậu Thiên Đế (5000 năm sau Diệp Phàm)!
         </p>
         <p className="text-slate-300 mb-6">
-          Hãy tạo dựng nhân vật, chọn độ dài cho thiên truyện và bắt đầu hành trình của mình trong thời đại mới này.
+          Hãy tạo dựng nhân vật của bạn. Những chi tiết này sẽ ảnh hưởng đến khởi đầu và diễn biến câu chuyện.
         </p>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="characterName" className="block text-sm font-medium text-sky-300 mb-1 text-left">
               Tên Nhân Vật
@@ -48,9 +52,25 @@ const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
-              placeholder="Ví dụ: Long Aotian, Tiểu Vũ..."
+              placeholder="Ví dụ: Tiểu Minh, A Niu..."
               required
               aria-required="true"
+            />
+          </div>
+          <div>
+            <label htmlFor="age" className="block text-sm font-medium text-sky-300 mb-1 text-left">
+              Số Tuổi
+            </label>
+            <input
+              type="number"
+              id="age"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
+              placeholder="Ví dụ: 16"
+              required
+              aria-required="true"
+              min="1"
             />
           </div>
           <div>
@@ -58,7 +78,7 @@ const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
               Nơi Khởi Đầu Trong Kỷ Nguyên Mới
             </label>
             <p className="text-xs text-slate-400 mb-2 text-left">
-              Đây là điểm xuất phát của bạn trong thế giới Già Thiên, 5000 năm sau thời kỳ của Diệp Phàm. Thiên Đình đã vững mạnh, nhiều thế hệ tu sĩ mới đã ra đời.
+              Đây là điểm xuất phát của bạn. Có thể là một ngôi làng hẻo lánh, một thành thị nhỏ, hoặc bất cứ đâu bạn tưởng tượng trong thời đại này.
             </p>
             <input
               type="text"
@@ -66,31 +86,40 @@ const CharacterSetup: React.FC<CharacterSetupProps> = ({ onSetupComplete }) => {
               value={initialLocation}
               onChange={(e) => setInitialLocation(e.target.value)}
               className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
-              placeholder="Ví dụ: Một tinh cầu của Thiên Đình, gần Thiên Đế Thánh Địa, một vùng biên thùy..."
+              placeholder="Ví dụ: Làng Đá Nhỏ, ven Thiên Hà Cổ..."
               required
               aria-required="true"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-sky-300 mb-2 text-left">
-              Độ Dài Truyện (Số Chương Mục Tiêu)
+           <div>
+            <label htmlFor="personality" className="block text-sm font-medium text-sky-300 mb-1 text-left">
+              Tính Cách (vài từ hoặc 1 câu)
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {CHAPTER_OPTIONS.map(option => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setTargetChapters(option)}
-                  className={`p-4 border rounded-lg transition-all duration-200 ease-in-out
-                    ${targetChapters === option 
-                      ? 'bg-sky-600 border-sky-500 text-white shadow-lg ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-800' 
-                      : 'bg-slate-700 border-slate-600 hover:bg-slate-600 hover:border-slate-500 text-slate-200'}`}
-                >
-                  <span className="block font-semibold text-lg">{option} chương</span>
-                  <span className="block text-xs mt-1">Ước tính: {getEstimatedPlaytime(option)}</span>
-                </button>
-              ))}
-            </div>
+            <input
+              type="text"
+              id="personality"
+              value={personality}
+              onChange={(e) => setPersonality(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
+              placeholder="Ví dụ: Hiền lành nhưng kiên định, thích khám phá, hơi nhút nhát..."
+              required
+              aria-required="true"
+            />
+          </div>
+           <div>
+            <label htmlFor="interests" className="block text-sm font-medium text-sky-300 mb-1 text-left">
+              Sở Thích (vài từ hoặc 1 câu)
+            </label>
+            <input
+              type="text"
+              id="interests"
+              value={interests}
+              onChange={(e) => setInterests(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition-colors"
+              placeholder="Ví dụ: Đọc sách cổ, ngắm sao, luyện võ, tìm hiểu về lịch sử..."
+              required
+              aria-required="true"
+            />
           </div>
           <button
             type="submit"
